@@ -37,7 +37,7 @@ RETRY_INTERVAL=2
 
 # service reliability
 MAX_DIRTY_REBOOT=3
-TEMPDIR='/tmp'
+TEMPDIR=$INSTALLDIR
 FILE_PREFIX='kpatch_dirty-'
 
 usage_cmd() {
@@ -461,6 +461,7 @@ check_start_all() {
 		elif [[ ! -e "$INSTALLDIR/$FILE_PREFIX$i" ]]; then
 			echo "touch file $INSTALLDIR/$FILE_PREFIX$i"
 			touch "$INSTALLDIR/$FILE_PREFIX$i"
+			sync
 			break
 		fi
 		i=$((i+1))
