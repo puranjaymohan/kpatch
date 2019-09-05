@@ -7,7 +7,8 @@ Wants=network-pre.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=PREFIX/sbin/kpatch load --all
+ExecStart=PREFIX/sbin/kpatch check-start --all
+ExecStop=PREFIX/sbin/kpatch check-stop --all
 
 [Install]
 WantedBy=multi-user.target

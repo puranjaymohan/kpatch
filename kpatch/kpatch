@@ -35,6 +35,11 @@ MAX_LOAD_ATTEMPTS=5
 # How long to wait before retry, in seconds.
 RETRY_INTERVAL=2
 
+# service reliability
+MAX_DIRTY_REBOOT=3
+TEMPDIR='/tmp'
+FILE_PREFIX='kpatch_dirty-'
+
 usage_cmd() {
 	printf '   %-20s\n%s\n' "$1" "$(fmt -w 80 <(echo "      $2"))" >&2
 }
@@ -446,6 +451,40 @@ get_module_version() {
 	MODVER="${MODVER/ */}"
 }
 
+check_start_all() {
+	local i=0
+
+	while true; do
+		if [[ $i -eq $MAX_DIRTY_REBOOT ]]; then
+			warn "system has crashed $MAX_DIRTY_REBOOT times and the patch modules will not be loaded."
+			return
+		elif [[ ! -e "$INSTALLDIR/$FILE_PREFIX$i" ]]; then
+			echo "touch file $INSTALLDIR/$FILE_PREFIX$i"
+			touch "$INSTALLDIR/$FILE_PREFIX$i"
+			break
+		fi
+		i=$((i+1))
+	done
+
+	for i in "$INSTALLDIR/$(uname -r)"/*.ko; do
+		[[ -e "$i" ]] || continue
+		load_module "$i" || die "failed to load module $i"
+	done
+}
+
+check_stop_all() {
+	local i=0
+	while true; do
+		if [[ $i -eq $MAX_DIRTY_REBOOT ]]; then
+			return
+		elif [[ -e "$INSTALLDIR/$FILE_PREFIX$i" ]]; then
+			echo "remove file $INSTALLDIR/$FILE_PREFIX$i"
+			rm "$INSTALLDIR/$FILE_PREFIX$i"
+		fi
+		i=$((i+1))
+	done
+}
+
 unset MODULE
 
 # Initialize the $SYSFS var.  This only works if the core module has been
@@ -631,6 +670,21 @@ case "$1" in
 "signal")
 	[[ "$#" -ne 1 ]] && usage
 	signal_stalled_processes
+	;;
+
+"check-start")
+	case "$2" in
+	"--all")
+		check_start_all
+		;;
+	esac
+	;;
+
+"check-stop")
+	case "$2" in
+	"--all")
+		check_stop_all
+	esac
 	;;
 
 "help"|"-h"|"--help")
