@@ -13,6 +13,8 @@
 # define __kpatch_section(section) __section(#section)
 #endif
 
+#define AMZN2_RELEASE 1
+
 /*
  * KPATCH_IGNORE_SECTION macro
  *
@@ -43,6 +45,9 @@
 #   define HAS_LIVEPATCH_CALLBACKS
 #  endif
 # elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+#  define HAS_LIVEPATCH_CALLBACKS
+# elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)) &&              \
+        defined(AMZN2_RELEASE)
 #  define HAS_LIVEPATCH_CALLBACKS
 # endif
 #endif

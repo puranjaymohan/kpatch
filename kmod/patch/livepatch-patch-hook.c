@@ -35,6 +35,8 @@
 #define UTS_UBUNTU_RELEASE_ABI 0
 #endif
 
+#define AMZN2_RELEASE 1
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) ||			\
     defined(RHEL_RELEASE_CODE)
 #define HAVE_ELF_RELOCS
@@ -61,6 +63,9 @@
 #  define HAVE_CALLBACKS
 # endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+# define HAVE_CALLBACKS
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)) &&		\
+       defined(AMZN2_RELEASE)
 # define HAVE_CALLBACKS
 #endif
 
