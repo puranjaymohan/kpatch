@@ -460,6 +460,7 @@ check_start_all() {
 			return
 		elif [[ ! -e "$INSTALLDIR/$FILE_PREFIX$i" ]]; then
 			echo "touch file $INSTALLDIR/$FILE_PREFIX$i"
+			mkdir -p "$INSTALLDIR" || die "failed to create install directory"
 			touch "$INSTALLDIR/$FILE_PREFIX$i"
 			sync
 			break
