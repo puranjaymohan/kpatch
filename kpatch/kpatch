@@ -69,7 +69,7 @@ usage () {
 }
 
 warn() {
-	echo "kpatch: $*" >&2
+	echo "<4>kpatch: $*" >&2
 }
 
 die() {
@@ -472,6 +472,21 @@ check_start_all() {
 		[[ -e "$i" ]] || continue
 		load_module "$i" || die "failed to load module $i"
 	done
+
+	# Confirm that all modules remain loaded
+	not_loaded=0
+	for i in "$INSTALLDIR/$(uname -r)"/*.ko; do
+		[[ -e "$i" ]] || continue
+		klp_name=$(modinfo "$i" | awk '/^name:/ {print $2}')
+		klp_path="/sys/kernel/livepatch/${klp_name}"
+		if [[ ! -e "$klp_path" ]] || [[ $(cat "${klp_path}/enabled") -ne 1 ]]; then
+			warn "$klp_name not properly loaded!"
+			not_loaded=$((not_loaded+1))
+		fi
+	done
+	if [[ $not_loaded -ne 0 ]]; then
+		die "WARNING! ${not_loaded} kernel livepatches are not enabled after loading"
+	fi
 }
 
 check_stop_all() {
