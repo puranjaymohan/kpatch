@@ -255,6 +255,44 @@ static bool kpatch_is_mapping_symbol(struct kpatch_elf *kelf, struct symbol *sym
 	return false;
 }
 
+static bool sym_has_call_ops(struct kpatch_elf *kelf, struct symbol *sym)
+{
+	switch (kelf->arch) {
+	case AARCH64:
+		unsigned char *insn = sym->sec->data->d_buf;
+		int i;
+
+		/*
+		 * sym.st_value holds the offset of the function in the section. As there are
+		 * two NOPs before the function entry (see comment below), the offset has to be 8.
+		 */
+		if (sym->sym.st_value != 8)
+			return false;
+
+		/*
+		 * If the arm64 kernel is compiled with CONFIG_DYNAMIC_FTRACE_WITH_CALL_OPS
+		 * then there are two NOPs before the function and a `BTI C` + 2 NOPs at the
+		 * start of the function. Verify the presence of the two NOPs before the
+		 * function entry.
+		 */
+		for (i = 0; i < 8; i += 4) {
+			/* We expect a NOP i.e. 0xd503201f (little endian) */
+			if (insn[i] != 0x1f || insn[i + 1] != 0x20 ||
+			    insn[i + 2] != 0x03 || insn [i + 3] != 0xd5)
+				return false;
+		}
+		return true;
+	case X86_64:
+	case PPC64:
+	case S390:
+		return false;
+	default:
+		ERROR("unsupported arch");
+	}
+
+	return false;
+}
+
 /*
  * When compiling with -ffunction-sections and -fdata-sections, almost every
  * symbol gets its own dedicated section.  We call such symbols "bundled"
@@ -269,7 +307,7 @@ static void kpatch_bundle_symbols(struct kpatch_elf *kelf)
 		if (is_bundleable(sym)) {
 			if (sym->pfx)
 				expected_offset = sym->pfx->sym.st_size;
-			else if (is_gcc6_localentry_bundled_sym(kelf, sym))
+			else if (is_gcc6_localentry_bundled_sym(kelf, sym) || sym_has_call_ops(kelf, sym))
 				expected_offset = 8;
 			else
 				expected_offset = 0;
@@ -3807,6 +3845,13 @@ static void kpatch_create_ftrace_callsite_sections(struct kpatch_elf *kelf, bool
 		case AARCH64: {
 			unsigned char *insn = sym->sec->data->d_buf;
 			int i;
+
+			/*
+			 * Skip the two NOPs added by CALL_OPS.
+			 */
+			if (sym_has_call_ops(kelf, sym)) {
+				insn += 8;
+			}
 
 			/*
 			 * If BTI (Branch Target Identification) is enabled then there
