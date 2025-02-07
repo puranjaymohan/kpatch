@@ -1,21 +1,32 @@
-diff -Nupr src.orig/drivers/tty/n_tty.c src/drivers/tty/n_tty.c
---- src.orig/drivers/tty/n_tty.c	2023-01-12 11:20:06.978709342 -0500
-+++ src/drivers/tty/n_tty.c	2023-01-12 11:20:54.149989024 -0500
-@@ -2315,7 +2315,7 @@ more_to_be_read:
+From c8f0032ffcf6ed03d55dec85311bf8641b425893 Mon Sep 17 00:00:00 2001
+From: Puranjay Mohan <pjy@amazon.com>
+Date: Fri, 7 Feb 2025 12:37:10 +0000
+Subject: [PATCH] new-function.patch
+
+Signed-off-by: Puranjay Mohan <pjy@amazon.com>
+---
+ drivers/tty/n_tty.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/tty/n_tty.c b/drivers/tty/n_tty.c
+index 5e9ca4376d68..cdd52f2c227f 100644
+--- a/drivers/tty/n_tty.c
++++ b/drivers/tty/n_tty.c
+@@ -2355,7 +2355,7 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file, u8 *kbuf,
   *	 (note that the process_output*() functions take this lock themselves)
   */
  
 -static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 +static ssize_t noinline kpatch_n_tty_write(struct tty_struct *tty, struct file *file,
- 			   const unsigned char *buf, size_t nr)
+ 			   const u8 *buf, size_t nr)
  {
- 	const unsigned char *b = buf;
-@@ -2402,6 +2402,12 @@ break_out:
+ 	const u8 *b = buf;
+@@ -2440,6 +2440,12 @@ static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
  	return (b - buf) ? b - buf : retval;
  }
  
 +static ssize_t __attribute__((optimize("-fno-optimize-sibling-calls"))) n_tty_write(struct tty_struct *tty, struct file *file,
-+										     const unsigned char *buf, size_t nr)
++										    const unsigned char *buf, size_t nr)
 +{
 +	return kpatch_n_tty_write(tty, file, buf, nr);
 +}
@@ -23,3 +34,6 @@ diff -Nupr src.orig/drivers/tty/n_tty.c src/drivers/tty/n_tty.c
  /**
   * n_tty_poll		-	poll method for N_TTY
   * @tty: terminal device
+-- 
+2.47.1
+

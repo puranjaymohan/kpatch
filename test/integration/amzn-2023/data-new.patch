@@ -1,7 +1,18 @@
-diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
---- src.orig/fs/proc/meminfo.c	2023-01-12 11:20:07.184710563 -0500
-+++ src/fs/proc/meminfo.c	2023-01-12 11:20:08.166716386 -0500
-@@ -29,6 +29,8 @@ static void show_val_kb(struct seq_file
+From 0ead47041aaa47615c7b78c17680497af05b660a Mon Sep 17 00:00:00 2001
+From: Puranjay Mohan <pjy@amazon.com>
+Date: Fri, 7 Feb 2025 12:33:03 +0000
+Subject: [PATCH] data-new
+
+Signed-off-by: Puranjay Mohan <pjy@amazon.com>
+---
+ fs/proc/meminfo.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/fs/proc/meminfo.c b/fs/proc/meminfo.c
+index 245171d9164b..582150354542 100644
+--- a/fs/proc/meminfo.c
++++ b/fs/proc/meminfo.c
+@@ -31,6 +31,8 @@ static void show_val_kb(struct seq_file *m, const char *s, unsigned long num)
  	seq_write(m, " kB\n", 4);
  }
  
@@ -10,11 +21,14 @@ diff -Nupr src.orig/fs/proc/meminfo.c src/fs/proc/meminfo.c
  static int meminfo_proc_show(struct seq_file *m, void *v)
  {
  	struct sysinfo i;
-@@ -154,6 +156,7 @@ static int meminfo_proc_show(struct seq_
+@@ -157,6 +159,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
  	show_val_kb(m, "CmaFree:        ",
  		    global_zone_page_state(NR_FREE_CMA_PAGES));
  #endif
 +	seq_printf(m, "kpatch:         %d\n", foo);
  
- 	hugetlb_report_meminfo(m);
- 
+ #ifdef CONFIG_UNACCEPTED_MEMORY
+ 	show_val_kb(m, "Unaccepted:     ",
+-- 
+2.47.1
+
