@@ -52,6 +52,7 @@
 #include "kpatch-elf.h"
 #include "kpatch-intermediate.h"
 #include "kpatch.h"
+#include "sframe.h"
 
 #define DIFF_FATAL(format, ...) \
 ({ \
@@ -2878,6 +2879,112 @@ next:
 	ip_sec->data->d_size = dest_idx * ORC_IP_PTR_SIZE;
 }
 
+static void kpatch_regenerate_sframe_section(struct kpatch_elf *kelf)
+{
+	struct rela *rela, *safe;
+	char *src_buf, *dest_buf;
+	struct section *sframe_sec;
+	struct sframe_header *header;
+	unsigned int num_fdes = 0;
+	size_t out_size = 0;
+	unsigned int out_num_fdes = 0;
+	unsigned int out_num_fres = 0;
+	unsigned int out_fre_len = 0;
+	size_t header_len = 0;
+	struct sframe_metadata *metadata;
+	size_t fde_size = sizeof(struct sframe_func_desc_entry);
+
+	LIST_HEAD(newrelas);
+
+	sframe_sec = find_section_by_name(&kelf->sections, ".sframe");
+
+	if (!sframe_sec)
+		return;
+
+	src_buf = sframe_sec->data->d_buf;
+
+	header = (struct sframe_header *)src_buf;
+
+	if ((header->sfh_preamble.sfp_magic != SFRAME_MAGIC) ||
+	    (header->sfh_preamble.sfp_version != SFRAME_VERSION_2)) {
+		ERROR("Invalid sframe header");
+	}
+
+	num_fdes = header->sfh_num_fdes;
+
+	metadata = malloc(sizeof(struct sframe_metadata) * num_fdes);
+	memset(metadata, 0, sizeof(struct sframe_metadata) * num_fdes);
+
+	header_len = sizeof(struct sframe_header) + header->sfh_auxhdr_len + header->sfh_fdeoff;
+
+	out_size = header_len;
+
+	struct sframe_func_desc_entry *fde;
+	unsigned int fre_size;
+	list_for_each_entry_safe(rela, safe, &sframe_sec->rela->relas, list) {
+		if (!rela->sym->sec)
+			ERROR("Invalid relocation in .rela.sframe");
+
+		if (rela->sym->sec->include) {
+			fre_size = 0;
+			metadata[out_num_fdes].fde_offset = rela->offset;
+			out_size += fde_size;
+
+			fde = (struct sframe_func_desc_entry *)(src_buf + rela->offset);
+			out_num_fres += fde->sfde_func_num_fres;
+
+			metadata[out_num_fdes].fre_start = header_len + header->sfh_freoff + fde->sfde_func_start_fre_off;
+			metadata[out_num_fdes].rela = rela;
+
+			list_del(&rela->list);
+			list_add_tail(&rela->list, &newrelas);
+
+			for (uint32_t i = 0; i < fde->sfde_func_num_fres; i++)
+				fre_size += get_fres_size(SFRAME_FUNC_FRE_TYPE(fde->sfde_func_info),
+						      src_buf + metadata[out_num_fdes].fre_start + fre_size);
+
+			metadata[out_num_fdes].fre_size = fre_size;
+			out_size += fre_size;
+			out_fre_len += fre_size;
+			out_num_fdes++;
+		}
+	}
+
+	dest_buf = malloc(out_size);
+	if (!dest_buf) {
+		free(metadata);
+		ERROR("malloc");
+	}
+
+	memcpy(dest_buf, src_buf, header_len);
+
+	header = (struct sframe_header *)dest_buf;
+	header->sfh_num_fdes = out_num_fdes;
+	header->sfh_num_fres = out_num_fres;
+	header->sfh_fre_len = out_fre_len;
+
+	char *out_fde = dest_buf + header_len;
+	char *out_fre = out_fde + (fde_size * out_num_fdes);
+	header->sfh_freoff = (unsigned int)(out_fre - out_fde);
+
+	for (unsigned int i=0; i < out_num_fdes; i++) {
+		memcpy(out_fde, src_buf + metadata[i].fde_offset, fde_size);
+		metadata[i].rela->offset = (unsigned int)(out_fde - dest_buf);
+		((struct sframe_func_desc_entry *)(out_fde))->sfde_func_start_fre_off = (unsigned int)(out_fre - (dest_buf + header_len + header->sfh_freoff));
+		memcpy(out_fre, src_buf + metadata[i].fre_start, metadata[i].fre_size);
+		out_fde += fde_size;
+		out_fre += metadata[i].fre_size;
+	}
+
+	list_replace(&newrelas, &sframe_sec->rela->relas);
+	sframe_sec->data->d_buf = dest_buf;
+	sframe_sec->data->d_size = out_size;
+	sframe_sec->include = 1;
+	sframe_sec->rela->include = 1;
+
+	free(metadata);
+}
+
 static void kpatch_check_relocations(struct kpatch_elf *kelf)
 {
 	struct rela *rela;
@@ -3205,6 +3312,7 @@ static void kpatch_process_special_sections(struct kpatch_elf *kelf,
 	}
 
 	kpatch_regenerate_orc_sections(kelf);
+	kpatch_regenerate_sframe_section(kelf);
 }
 
 static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
